@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+backend/data/
+*.db
+*.db-wal
+*.db-shm
+.env
+node_modules/
+frontend/dist/
+
+# Secrets and local operational data
+*.key
+.env.*
+backend/data/backups/
