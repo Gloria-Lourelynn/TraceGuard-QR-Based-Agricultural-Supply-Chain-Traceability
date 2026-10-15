@@ -1,110 +1,223 @@
 # TraceGuard
+### Trust-Aware Agricultural Supply Chain Traceability
 
-**Agricultural shipment traceability with signed QR handovers, role-based access, and evidence-backed anomaly alerts.**
+**Single-use QR handovers · Cryptographic verification · Role-based access control · Explainable anomaly detection · Tamper-evident audit trails**
 
-TraceGuard is a web application prototype for recording produce shipments and their handovers across a supply chain. Sellers register shipments and issue QR labels; assigned transporters scan labels at checkpoints; inspectors review suspicious histories; administrators manage users and assignments.
+TraceGuard is a full-stack agricultural supply chain traceability platform that records produce shipments, verifies handovers, and identifies suspicious shipment activity. It combines cryptographically signed QR labels and server-side single-use token validation with shipment lifecycle checks, risk-prioritized anomaly findings, and auditable review workflows.
 
-It is designed to demonstrate how a traceability workflow can detect inconsistencies that a QR scan alone cannot prevent.
+Unlike conventional QR tracking systems, TraceGuard does not treat a successful scan as proof that a shipment is legitimate. Every handover must pass backend validation, including checks against the QR token's state and the shipment's recorded history.
+
+The platform is designed for farmers, transporters, inspectors, and administrators who need a more accountable way to track agricultural produce across supply chain checkpoints.
+
+## Key Technical Highlights
+
+| Capability | Engineering approach |
+|---|---|
+| Single-use QR handovers | Server-tracked tokens consumed after successful handovers |
+| Cryptographic verification | Signed QR payloads validated by the backend |
+| Replay prevention | Previously consumed tokens cannot authorize a new handover |
+| Duplicate-request safety | Idempotency handling for safe retries without repeating a transaction |
+| Access control | Backend-enforced role-based authorization and shipment permissions |
+| Anomaly detection | Rule-based lifecycle, checkpoint, timing, quantity, and QR-reuse checks |
+| Risk prioritization | Explainable risk scoring and deduplicated findings |
+| Audit integrity | Hash-linked audit records and verifiable audit-anchor receipts |
+| Data resilience | Persistent SQLite storage and integrity-checked backups |
+| Application security | Password hashing, expiring bearer tokens, login throttling, request limits, and security headers |
 
 ## Features
 
-### Shipment traceability
-- Register produce shipments with product, origin, destination, quantity, unit, and dispatch date.
-- Create a shipment history from checkpoint events and handovers.
-- View shipment details, event timelines, status, and relevant alerts according to the signed-in user's permissions.
+### 1. End-to-End Shipment Traceability
+
+- Register shipments with produce details, origin, destination, quantity, unit, and dispatch date.
+- Maintain a chronological record of shipment checkpoints and handovers.
+- View shipment status, event timelines, and relevant alerts according to user permissions.
 - Generate and download QR labels for shipment handovers.
+- Support shipment assignment and role-specific operational workflows.
 
-### Signed QR handovers
-- QR payloads are cryptographically signed and checked by the backend.
-- Rolling labels use server-tracked, single-use tokens; a successful handover consumes the token.
-- Reject invalid, expired, consumed, or forged labels for new handovers.
-- Idempotency handling protects against accidental duplicate submissions and supports safe retries.
-- Camera scanning is available in the browser. Manual entry is not treated as proof of a valid signed label.
+### 2. Single-Use, Cryptographically Signed QR Handovers
 
-### Anomaly detection and review
-- Check shipment event order and lifecycle consistency.
-- Flag suspicious histories such as repeated checkpoint activity, implausible travel between checkpoints, and inconsistent timestamps or quantities.
-- Detect patterns consistent with QR reuse across checkpoints.
-- Calculate an explainable risk-priority score and deduplicate recurring findings.
-- Let inspectors review or dismiss findings with a recorded reason; supported manual exceptions are auditable.
+TraceGuard implements a controlled QR handover protocol designed to prevent previously used shipment labels from authorizing additional handovers.
 
-### Access control and administration
-The backend enforces role-based access control (RBAC) on API routes and shipment data.
+- **Cryptographic authenticity:** QR payloads are signed and validated by the backend.
+- **Single-use tokens:** Each rolling QR label uses a server-tracked token that can authorize a handover only once.
+- **Replay prevention:** After a successful handover, the token is consumed. Replaying the same label for another handover is rejected.
+- **Server-side validation:** The backend checks token validity, expiry, consumption state, and shipment context instead of trusting the frontend.
+- **Duplicate-request protection:** Idempotency handling supports safe retries while distinguishing them from attempts to reuse a token for a new transaction.
+- **Invalid-label rejection:** Forged, expired, invalid, or already-consumed tokens cannot authorize a new handover.
+- **Camera-based scanning:** Transporters scan labels through the browser interface to record checkpoint handovers.
+- **Controlled workflow:** Shipment handovers are validated against server-side state rather than accepting a shipment ID alone as proof of authenticity.
 
-| Role | Main capabilities |
+**Why it matters:** A conventional QR image can be photographed, copied, and scanned repeatedly. TraceGuard combines signed payloads with server-side token state so that a previously consumed token cannot authorize a second handover.
+
+Single-use enforcement applies to the tracked handover token. It does not prevent someone from copying the QR image itself or independently prove the physical identity of the produce.
+
+### 3. Explainable Shipment Anomaly Detection
+
+TraceGuard evaluates recorded shipment events against operational rules to identify suspicious activity.
+
+Detection checks include:
+
+- Invalid or unexpected shipment lifecycle transitions.
+- Repeated checkpoint activity and patterns consistent with QR reuse.
+- Implausible travel intervals between checkpoints.
+- Inconsistent event timestamps or shipment quantities.
+- Other rule-defined inconsistencies in shipment history.
+
+The anomaly engine assigns risk-priority scores to help users focus on higher-priority findings. Recurring findings are deduplicated to reduce repetitive alerts.
+
+Inspectors can investigate findings, record review decisions, dismiss supported alerts with a reason, and preserve an auditable trail of those decisions.
+
+**Important:** These are rule-based anomaly indicators, not definitive proof of food fraud, physical tampering, or counterfeit produce.
+
+### 4. Role-Based Access Control (RBAC)
+
+Authorization is enforced by the backend rather than relying solely on frontend visibility.
+
+| Role | Responsibilities |
 |---|---|
-| Seller / farmer | Register shipments, view owned shipments, download labels |
-| Transporter / operator | View assigned shipments and record checkpoint handovers by scanning labels |
-| Inspector | Review shipment histories, investigate alerts, record review decisions |
-| Admin | Manage users and assignments, access operational records, and perform administrative audit actions |
+| Seller / Farmer | Register shipments, access owned shipments, generate QR labels |
+| Transporter / Operator | Access assigned shipments and record authorized checkpoint handovers by scanning labels |
+| Inspector | Investigate shipment histories, review alerts, and record findings and decisions |
+| Administrator | Manage users and assignments, access operational records, and perform authorized administrative audit actions |
 
-New shipments are assigned to the demo `transporter` account by default in development. This can be configured or disabled using `TRACEGUARD_AUTO_ASSIGN_TRANSPORTER`.
+Development mode can automatically assign newly created shipments to the demo transporter account. This behavior is configurable.
 
-### Security and data integrity
-- Password hashing and expiring bearer-token authentication.
-- Login throttling, request rate limits, security response headers, and bounded request schemas.
-- Audit records linked by a tamper-evident hash chain.
-- Export and verify signed audit-anchor receipts so a chain head can be checked outside the application database.
-- Persistent SQLite storage and an integrity-checked backup utility.
-- Production-mode startup checks for secrets, HTTPS origins, and unchanged demo passwords.
+### 5. Tamper-Evident Audit Trail
 
-### Dashboard and reports
-- Shipment dashboard, status summaries, risk indicators, and alert views.
-- Shipment detail and event history views.
-- Reports and administrative screens.
+TraceGuard maintains a linked audit history designed to make unauthorized record alteration detectable.
 
-## Technology stack
+- Connect audit records using a hash chain.
+- Verify the integrity and continuity of recorded audit events.
+- Export and verify signed audit-anchor receipts.
+- Support verification of a retained audit-chain head independently of the application's current database state, subject to the available receipt and verification material.
+- Record supported review and administrative actions for accountability.
 
-- **Frontend:** React, TypeScript, Vite, Tailwind CSS, React Router, `qr-scanner`
-- **Backend:** Python 3.12, FastAPI, Pydantic, Uvicorn
-- **Database:** SQLite
-- **QR generation:** `qrcode` with Pillow
-- **Testing:** pytest and HTTPX, plus standard-library unit tests
+A hash chain does not guarantee that every event was recorded or prevent all forms of database manipulation. Independently retained anchor receipts strengthen verification of previously recorded history.
 
-## Requirements
+### 6. Authentication and Application Security
 
-- Windows 10/11 or another Python-compatible operating system
-- Python **3.12** (Windows setup script uses the Python Launcher: `py -3.12`)
-- Node.js and npm
-- Git (optional, for cloning)
+- Password hashing for stored credentials.
+- Expiring bearer-token authentication.
+- Login throttling and request rate limits.
+- Security response headers and bounded request schemas.
+- Server-side permission checks on protected routes.
+- Production startup checks for required secrets, permitted origins, and unchanged default demo passwords.
+- Configurable checkpoint-device token requirements.
 
-## Quick start on Windows
+Production deployments still require HTTPS, secure secret management, access restrictions, and appropriate operational monitoring.
 
-Open PowerShell in the project root.
+### 7. Dashboard, Reports, and Administration
 
-1. Create the backend virtual environment, install dependencies, and seed demo data:
+- Shipment status summaries and operational dashboards.
+- Risk indicators and anomaly finding views.
+- Shipment details and chronological event histories.
+- Inspector review workflows.
+- Administrative user and assignment management.
+- Audit-related operational tools.
 
-   ```powershell
-   .\setup_windows.ps1
-   ```
+## Technology Stack
 
-2. Start the backend in a PowerShell terminal:
-
-   ```powershell
-   cd backend
-   .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-   ```
-
-3. In a second terminal, install frontend packages and start the UI:
-
-   ```powershell
-   cd frontend
-   npm install
-   npm run dev
-   ```
-
-4. Open the application at **http://127.0.0.1:5173**.
-
-   API health check: http://127.0.0.1:8000/health  
-   Interactive API docs: http://127.0.0.1:8000/docs
-
-The setup script expects standard Python 3.12. It intentionally calls the virtual environment's Python executable directly to avoid accidentally installing packages into a different Python installation.
-
-## Manual setup
+### Frontend
+- **React + TypeScript** — component-based user interface and typed application code.
+- **Vite** — frontend development server and production bundler.
+- **Tailwind CSS** — interface styling.
+- **React Router** — client-side page navigation.
+- **qr-scanner** — browser-based QR scanning.
 
 ### Backend
+- **Python 3.12** — application and rule-engine implementation.
+- **FastAPI** — REST API and request handling.
+- **Pydantic** — request and data-schema validation.
+- **Uvicorn** — ASGI application server.
 
-Run these commands from the repository root in PowerShell:
+### Data, Security, and Testing
+- **SQLite** — persistent application data.
+- **`qrcode` + Pillow** — QR label generation.
+- **Cryptographic signing and hashing** — QR authenticity checks and audit integrity.
+- **pytest + HTTPX** — automated backend and API testing.
+- **Python standard library** — supporting utilities and unit tests.
+
+## Architecture
+
+```text
+┌──────────────────────────────────────────────┐
+│            React + TypeScript UI             │
+│ Dashboard · Shipments · QR Scanner · Reports │
+└──────────────────────┬───────────────────────┘
+                       │ HTTP API
+┌──────────────────────▼───────────────────────┐
+│                  FastAPI                     │
+│ Authentication · Validation · RBAC           │
+├──────────────────────────────────────────────┤
+│              Shipment Services               │
+│ Registration · Assignment · Handovers        │
+├──────────────────────────────────────────────┤
+│            QR Security Layer                 │
+│ Signed Payloads · Single-Use Tokens           │
+│ Server-Side Validation · Replay Prevention    │
+├──────────────────────────────────────────────┤
+│                Rule Engine                   │
+│ Lifecycle Checks · QR Reuse · Risk Scoring   │
+├──────────────────────────────────────────────┤
+│                 Audit Layer                  │
+│ Hash Chain · Audit-Anchor Verification       │
+├──────────────────────────────────────────────┤
+│                  SQLite                      │
+│ Shipments · Events · Findings · Audit Data   │
+└──────────────────────────────────────────────┘
+```
+
+## Getting Started
+
+### Prerequisites
+
+- Windows 10/11 or another compatible operating system.
+- Python 3.12.
+- Node.js and npm.
+- Git, if cloning the repository.
+
+### Windows Quick Start
+
+Run the following commands from the project root in PowerShell.
+
+**1. Set up the backend**
+
+```powershell
+.\setup_windows.ps1
+```
+
+The setup script creates the backend virtual environment, installs dependencies, and prepares demo data.
+
+**2. Start the backend**
+
+Open a terminal in the project root:
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+**3. Start the frontend**
+
+Open a second terminal in the project root:
+
+```powershell
+cd frontend
+npm ci
+npm run dev
+```
+
+**4. Open the application**
+
+- Frontend: http://127.0.0.1:5173
+- API health check: http://127.0.0.1:8000/health
+- Interactive API documentation: http://127.0.0.1:8000/docs
+
+The backend binds to a loopback address for local development. The API documentation is intended for development and should not be exposed publicly without appropriate controls.
+
+### Manual Backend Setup
+
+From the repository root:
 
 ```powershell
 cd backend
@@ -115,28 +228,32 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-### Frontend
+### Manual Frontend Setup
 
-In a separate terminal from the repository root:
+In a separate terminal:
 
 ```powershell
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
-### Demo credentials
+Using the virtual environment's Python executable directly helps ensure dependencies are installed into the intended environment.
 
-The seed script creates missing demo accounts using the development password `TraceGuardDemo!2026`, unless `TRACEGUARD_DEMO_PASSWORD` is set before running the seed script. Existing accounts are not automatically reset.
+## Demo Accounts
+
+The development seed script creates missing demo accounts using the default development password `TraceGuardDemo!2026`, unless `TRACEGUARD_DEMO_PASSWORD` is configured before seeding. Existing accounts are not automatically reset.
 
 | Role | Username |
 |---|---|
-| Seller / farmer | `seller` |
-| Transporter / operator | `transporter` |
+| Seller / Farmer | `seller` |
+| Transporter / Operator | `transporter` |
 | Inspector | `inspector` |
-| Admin | `admin` |
+| Administrator | `admin` |
 
-These are **local demonstration credentials only**. Do not reuse them for a public deployment or shared environment. For a fresh demo password in PowerShell, set it before seeding:
+**Demo credentials are for local testing only.** Never reuse these credentials in a public or production deployment.
+
+To choose a different password before seeding, run from the `backend` directory:
 
 ```powershell
 $env:TRACEGUARD_DEMO_PASSWORD = "Choose-A-Long-Password!"
@@ -150,78 +267,130 @@ $env:TRACEGUARD_DEMO_PASSWORD = "Choose-A-Long-Password!"
 .\.venv\Scripts\python.exe seed.py --reset-demo-passwords
 ```
 
-The destructive `seed.py --reset` option replaces the configured local database. Do not use it if you need to preserve existing records.
+The destructive `seed.py --reset` option replaces the configured local database. Use it only when you intentionally want to reset demo data.
 
-## Suggested demo flow
+## Suggested Demonstration Workflow
 
-1. Sign in as `seller` and register a produce shipment.
-2. Download its QR label.
-3. Sign in as `transporter`, open the assigned shipment workflow, and scan the label at a checkpoint.
-4. Review the updated shipment timeline.
-5. Open the inspector view to examine any generated findings and record a review decision.
-6. Open the admin view to explore users, assignments, and audit-related tools.
-7. Try the seeded example journeys to compare normal and suspicious histories.
+1. Sign in as the seller and register a produce shipment.
+2. Generate and download its QR label.
+3. Sign in as the assigned transporter and scan the label at a checkpoint.
+4. Review the updated shipment timeline and handover status.
+5. Attempt to reuse the consumed QR token and observe the server's rejection.
+6. Retry a previously processed request, where supported, to demonstrate idempotency handling.
+7. Sign in as the inspector and investigate available anomaly findings.
+8. Record a review decision and inspect the associated history.
+9. Explore administrative assignments and audit-related features.
 
-Camera scanning requires browser camera permission. Camera access is generally available on `localhost` or over HTTPS.
+The availability of a particular anomaly depends on the seeded scenario and recorded events. Browser camera access requires permission and generally works on `localhost` or HTTPS.
 
-## Tests
+## Testing and Quality Checks
 
-From `backend`:
+Run backend tests from the `backend` directory:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-The test suite covers API authentication and role restrictions, shipment ownership and assignments, signed QR validation, handover idempotency, anomaly rules, finding reviews, audit-chain integrity, repeatable demo seeding, and database backups.
+The test suite covers areas including:
 
-## Configuration and data
+- API authentication and role restrictions.
+- Shipment ownership and transporter assignments.
+- Signed QR validation and handover behavior.
+- Idempotency and duplicate request handling.
+- Anomaly rules and finding-review workflows.
+- Audit-chain integrity.
+- Repeatable demo seeding.
+- Database backup integrity.
 
-The application creates its SQLite database and development signing key under `backend/data/` by default. This directory is excluded from version control. The database persists across backend restarts.
+Build the frontend for production from the `frontend` directory:
 
-| Variable | Purpose |
+```powershell
+npm ci
+npm run build
+```
+
+Running the development server alone does not establish that the production build succeeds.
+
+## Configuration
+
+The application stores its SQLite database and development signing key under `backend/data/` by default. This directory is excluded from version control.
+
+| Environment variable | Purpose |
 |---|---|
-| `TRACEGUARD_ENV` | Set to `production` to enable production startup checks |
-| `TRACEGUARD_DB` | Override the SQLite database file path |
-| `TRACEGUARD_DATA_DIR` | Override the application data directory |
-| `TRACEGUARD_SECRET` | Supply a master secret (at least 32 bytes) |
-| `TRACEGUARD_SECRET_FILE` | Read the master secret from a protected file |
-| `TRACEGUARD_ORIGINS` | Comma-separated frontend origins allowed by CORS |
-| `TRACEGUARD_AUTO_ASSIGN_TRANSPORTER` | Default transporter username, or `off` to disable automatic assignment |
-| `TRACEGUARD_REQUIRE_CHECKPOINT_DEVICE` | Require configured checkpoint-device tokens when enabled |
-| `TRACEGUARD_CHECKPOINT_DEVICE_TOKENS` | JSON mapping of checkpoint IDs to unique secrets |
+| `TRACEGUARD_ENV` | Enables production startup checks when set to `production` |
+| `TRACEGUARD_DB` | Overrides the SQLite database path |
+| `TRACEGUARD_DATA_DIR` | Overrides the application data directory |
+| `TRACEGUARD_SECRET` | Supplies the master secret |
+| `TRACEGUARD_SECRET_FILE` | Loads the master secret from a protected file |
+| `TRACEGUARD_ORIGINS` | Defines permitted frontend origins for CORS |
+| `TRACEGUARD_AUTO_ASSIGN_TRANSPORTER` | Sets the default transporter username, or `off` to disable automatic assignment |
+| `TRACEGUARD_REQUIRE_CHECKPOINT_DEVICE` | Enables checkpoint-device token requirements |
+| `TRACEGUARD_CHECKPOINT_DEVICE_TOKENS` | Configures checkpoint IDs and associated secrets as a JSON mapping |
 
-For a production deployment, configure a secret of at least 32 bytes through a secret manager or protected secret file, set explicit HTTPS frontend origins, replace demo credentials, use HTTPS, restrict database and backup access, and conduct a security review. Production mode intentionally refuses to start if required configuration is missing or active accounts still use the default demo password.
+For production deployment:
 
-Create a consistent backup from the `backend` directory:
+- Configure a strong secret of at least 32 bytes through a protected file or secret manager.
+- Use explicit HTTPS frontend origins and serve the application over HTTPS.
+- Replace all demo credentials.
+- Restrict database and backup access.
+- Protect signing material and rotate secrets according to an operational policy.
+- Review authentication, authorization, backup recovery, and audit-verification behavior before deployment.
+
+Production mode includes startup checks for required configuration and default demo passwords, but these checks do not replace a full security review.
+
+## Database Backups
+
+Run from the `backend` directory:
 
 ```powershell
 .\.venv\Scripts\python.exe backup_db.py
 ```
 
-Backups are written under `backend/data/backups/` by default. The utility checks SQLite integrity and refuses to overwrite an existing destination.
+Backups are written to `backend/data/backups/` by default. The utility checks SQLite integrity and refuses to overwrite an existing destination.
 
-## Project structure
+Keep production backups in access-controlled storage separate from the application host where possible.
+
+## Project Structure
 
 ```text
 traceguard-v2/
 ├── backend/
 │   ├── app/
-│   │   ├── engine/          Shipment rules, checkpoint checks, risk scoring, QR-reuse detection, audit chain
-│   │   ├── main.py          FastAPI routes and role enforcement
-│   │   ├── auth.py          Authentication and tokens
-│   │   ├── security.py      Signed QR payloads and request protections
-│   │   ├── service.py       Shipment and handover workflows
-│   │   ├── db.py            SQLite persistence
-│   │   └── schemas.py       Request validation
-│   ├── tests/               API, service, and engine tests
-│   ├── seed.py              Demo accounts and example shipment histories
-│   ├── backup_db.py         Integrity-checked database backups
-│   └── requirements*.txt    Python dependencies
+│   │   ├── engine/
+│   │   │   ├── audit_chain.py
+│   │   │   ├── checkpoints.py
+│   │   │   ├── clone.py
+│   │   │   ├── risk.py
+│   │   │   ├── rules.py
+│   │   │   └── states.py
+│   │   ├── auth.py
+│   │   ├── config.py
+│   │   ├── db.py
+│   │   ├── main.py
+│   │   ├── qr.py
+│   │   ├── schemas.py
+│   │   ├── security.py
+│   │   └── service.py
+│   ├── tests/
+│   ├── seed.py
+│   ├── backup_db.py
+│   ├── rotate_secret.py
+│   └── requirements*.txt
 ├── frontend/
-│   ├── src/pages/           Login, dashboard, registration, scanning, shipment, reports, admin
-│   ├── src/api/client.ts    Typed API client
-│   └── package.json
+│   ├── src/
+│   │   ├── api/
+│   │   ├── components/
+│   │   └── pages/
+│   ├── package.json
+│   └── vite.config.ts
 ├── setup_windows.ps1
+├── .gitignore
 └── README.md
 ```
+
+## Project Goal
+
+TraceGuard explores how single-use cryptographic QR handovers, least-privilege access, event-consistency rules, and tamper-evident records can work together to improve agricultural supply chain transparency and make suspicious activity easier to investigate.
+
+**Built with React, TypeScript, FastAPI, Python, SQLite, and cryptographic verification.**
 
