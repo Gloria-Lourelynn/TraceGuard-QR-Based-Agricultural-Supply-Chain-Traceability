@@ -225,14 +225,3 @@ traceguard-v2/
 └── README.md
 ```
 
-## Scope and limitations
-
-TraceGuard is a **prototype**, not a production-certified food-safety or anti-counterfeiting system.
-
-- A valid signed QR proves that a label payload was issued by this application; it does not prove the physical produce is genuine or that the label has not been copied.
-- A copied current label may be used before the legitimate token is consumed. Single-use tokens and anomaly alerts reduce some risks but cannot eliminate them.
-- Browser camera scanning is a user-interface workflow, not cryptographic proof that a camera was used.
-- Checkpoints and coordinates are demonstration data. The system does not independently prove a user's physical location.
-- The audit hash chain helps reveal changes when compared with a trusted reference. If an attacker controls the database and its only reference, they may be able to rewrite the chain; export audit anchors to independently controlled storage.
-- SQLite and in-process rate limiting are intended for a local demonstration, not a horizontally scaled deployment.
-
